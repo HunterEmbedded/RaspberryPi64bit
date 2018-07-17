@@ -1,0 +1,113 @@
+From bc8525041af824d4c0e49c32b676c931d0f6cb8d Mon Sep 17 00:00:00 2001
+From: Iain Hunter <iain@hunterembedded.co.uk>
+Date: Thu, 7 Jun 2018 08:58:58 +0100
+Subject: [PATCH 2/3] use device tree to swap UART pin usage on RPi 3B+ for
+ terminal, set bootargs in dts and setup stdout-path for use by earlycon
+
+---
+ arch/arm/boot/dts/bcm270x.dtsi             |  2 +-
+ arch/arm/boot/dts/bcm2710-rpi-3-b-plus.dts | 39 +++++++++++++++++++++++++-----
+ 2 files changed, 34 insertions(+), 7 deletions(-)
+
+diff --git a/arch/arm/boot/dts/bcm270x.dtsi b/arch/arm/boot/dts/bcm270x.dtsi
+index d26b10a..7954464 100644
+--- a/arch/arm/boot/dts/bcm270x.dtsi
++++ b/arch/arm/boot/dts/bcm270x.dtsi
+@@ -4,7 +4,7 @@
+ / {
+ 	chosen {
+ 		bootargs = "";
+-		/delete-property/ stdout-path;
++	/*	/delete-property/ stdout-path; */
+ 	};
+ 
+ 	soc: soc {
+diff --git a/arch/arm/boot/dts/bcm2710-rpi-3-b-plus.dts b/arch/arm/boot/dts/bcm2710-rpi-3-b-plus.dts
+index 7641360..8b70b8b 100644
+--- a/arch/arm/boot/dts/bcm2710-rpi-3-b-plus.dts
++++ b/arch/arm/boot/dts/bcm2710-rpi-3-b-plus.dts
+@@ -8,13 +8,21 @@
+ 	model = "Raspberry Pi 3 Model B+";
+ 
+ 	chosen {
+-		bootargs = "8250.nr_uarts=1";
++             bootargs= "8250.nr_uarts=1 dwc_otg.lpm_enable=0 console=ttyAMA0,115200 root=/dev/mmcblk0p2 rootfstype=ext4 elevator=deadline fsck.repair=yes rootwait";
++             stdout-path="serial0:115200n8";              /* stdout-path used for earlycon serial port on arm64 */
+ 	};
+-
++#if 0
+ 	aliases {
+ 		serial0 = &uart1;
+ 		serial1 = &uart0;
+ 	};
++#else
++	aliases {
++		serial0 = &uart0;
++		serial1 = &uart1;
++	};
++
++#endif
+ };
+ 
+ &gpio {
+@@ -54,19 +62,36 @@
+ 		brcm,function = <4>; /* alt0:GPCLK2 */
+ 		brcm,pull = <0>;
+ 	};
+-
++#if 0
+ 	uart0_pins: uart0_pins {
+ 		brcm,pins = <32 33>;
+ 		brcm,function = <7>; /* alt3=UART0 */
+ 		brcm,pull = <0 2>;
+ 	};
+-
++	
+ 	uart1_pins: uart1_pins {
+ 		brcm,pins;
+ 		brcm,function;
+ 		brcm,pull;
+ 	};
+ 
++#else
++  /* Manually change uart0 to pins 14/15 as default */
++  	uart0_pins: uart0_pins {
++		brcm,pins;
++		brcm,function; 
++		brcm,pull;
++	};
++
++	uart1_pins: uart1_pins {
++		brcm,pins = <32 33>;
++		brcm,function = <2>; /* alt5=UART1 */
++		brcm,pull = <0 2>;
++	};
++#endif
++
++
++
+ 	audio_pins: audio_pins {
+ 		brcm,pins = <40 41>;
+ 		brcm,function = <4>;
+@@ -94,14 +119,16 @@
+ 
+ &uart0 {
+ 	pinctrl-names = "default";
+-	pinctrl-0 = <&uart0_pins &bt_pins>;
++	/* remove bt_pins 
++	pinctrl-0 = <&uart0_pins &bt_pins>; */
++	pinctrl-0 = <&uart0_pins>;
+ 	status = "okay";
+ };
+ 
+ &uart1 {
+ 	pinctrl-names = "default";
+ 	pinctrl-0 = <&uart1_pins>;
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &spi0 {
+-- 
+2.7.4
+
